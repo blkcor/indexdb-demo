@@ -130,6 +130,29 @@
       background: #e02c32;
     }
 
+    .done-btn {
+      background: #42b72a;
+    }
+    .done-btn:hover {
+      background: #36a420;
+    }
+
+    .undone-btn {
+      background: #666;
+    }
+    .undone-btn:hover {
+      background: #555;
+    }
+
+    .todo-completed {
+      opacity: 0.6;
+    }
+
+    .todo-completed .todo-text {
+      text-decoration: line-through;
+      color: #888;
+    }
+
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -184,11 +207,12 @@
       background-color: #d8dbdf;
     }
   </style>
+   <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
 </head>
 
 <body>
   <div class="container">
-    <h1>RxDB Todolist</h1>
+    <h1>Dexie Todolist</h1>
     <div class="input-area">
       <input type="text" id="todo-input" placeholder="What needs to be done?">
       <button id="add-todo-btn">Add</button>

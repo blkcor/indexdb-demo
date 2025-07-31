@@ -1,26 +1,3 @@
-// 1. Todo Schema
-const todoSchema = {
-  title: 'todo schema',
-  version: 0,
-  primaryKey: 'id',
-  type: 'object',
-  properties: {
-    id: {
-      type: 'string',
-      maxLength: 100 // Add maxLength for performance
-    },
-    text: {
-      type: 'string'
-    },
-    createdAt: {
-      type: 'number',
-      index: true // Create an index on createdAt for faster sorting
-    }
-  },
-  required: ['id', 'text', 'createdAt']
-};
-
-// 2. Global Variables
 let db;
 
 // 3. Helper functions for Modal
@@ -57,8 +34,7 @@ const hideDeleteModal = () => {
 };
 
 
-// 4. Render Logic (now driven by RxDB subscription)
-const renderTodos = (todos) => {
+const renderTodos = async (todos) => {
   const todoList = document.getElementById('todo-list');
   todoList.innerHTML = '';
 
@@ -67,16 +43,26 @@ const renderTodos = (todos) => {
     return;
   }
 
-  todos.forEach(todoDoc => {
-    const todo = todoDoc.toJSON(); // Get plain JS object from RxDocument
+  for (const todo of todos) {
     const li = document.createElement('li');
     li.dataset.id = todo.id;
+    
+    // Add completed class if todo is completed
+    if (todo.completed) {
+      li.classList.add('todo-completed');
+    }
 
     const todoTextSpan = document.createElement('span');
     todoTextSpan.textContent = todo.text;
     todoTextSpan.className = 'todo-text';
 
     const buttonContainer = document.createElement('div');
+    
+    // Done/Undone button
+    const doneButton = document.createElement('button');
+    doneButton.textContent = todo.completed ? 'Undone' : 'Done';
+    doneButton.className = todo.completed ? 'undone-btn' : 'done-btn';
+    
     const editButton = document.createElement('button');
     editButton.textContent = 'Edit';
     editButton.className = 'edit-btn';
@@ -84,6 +70,15 @@ const renderTodos = (todos) => {
     const deleteButton = document.createElement('button');
     deleteButton.textContent = 'Delete';
     deleteButton.className = 'delete-btn';
+
+    // Done/Undone functionality
+    doneButton.onclick = async () => {
+      await db.todos.update(todo.id, {
+        completed: !todo.completed,
+        updatedAt: new Date().toISOString()
+      });
+      await loadAndRenderTodos();
+    };
 
     // Edit functionality
     editButton.onclick = () => {
@@ -100,17 +95,18 @@ const renderTodos = (todos) => {
       const saveAction = async () => {
         const newText = editInput.value.trim();
         if (newText && newText !== todo.text) {
-          // Use patch for efficient updates
-          await todoDoc.patch({ text: newText });
-        } else {
-          renderTodos(db.todos.find().exec().then(docs => docs)); // Re-render to cancel
+          await db.todos.update(todo.id, {
+            text: newText,
+            updatedAt: new Date().toISOString()
+          });
         }
+        await loadAndRenderTodos();
       };
 
       saveButton.onclick = saveAction;
       editInput.onkeydown = (e) => {
         if (e.key === 'Enter') saveAction();
-        if (e.key === 'Escape') renderTodos(db.todos.find().exec().then(docs => docs));
+        if (e.key === 'Escape') loadAndRenderTodos();
       };
 
       li.appendChild(editInput);
@@ -121,42 +117,37 @@ const renderTodos = (todos) => {
     // Delete functionality
     deleteButton.onclick = () => {
       showDeleteModal(`Are you sure you want to delete "${todo.text}"?`, async () => {
-        await todoDoc.remove();
+        await db.todos.delete(todo.id);
+        await loadAndRenderTodos();
       });
     };
 
     li.appendChild(todoTextSpan);
+    buttonContainer.appendChild(doneButton);
     buttonContainer.appendChild(editButton);
     buttonContainer.appendChild(deleteButton);
     li.appendChild(buttonContainer);
     todoList.appendChild(li);
-  });
+  }
 };
 
 
-// 5. App Initialization
+// Helper function to load and render todos
+const loadAndRenderTodos = async () => {
+  const todos = await db.todos.orderBy('createdAt').toArray();
+  await renderTodos(todos);
+};
+
+// App Initialization
 const main = async () => {
-  // Create the RxDB database
-  db = await RxDB.createRxDatabase({
-    name: 'todolistdb',
-    storage: RxDB.getRxStoragePouch('idb') // Specify IndexedDB adapter
+  db = new Dexie("todolist-database");
+
+  db.version(1).stores({
+    todos: 'id, text, createdAt, completed'
   });
 
-  // Create the 'todos' collection
-  await db.addCollections({
-    todos: {
-      schema: todoSchema
-    }
-  });
-
-  // Subscribe to the query.
-  // This will re-run renderTodos() whenever the result set changes.
-  db.todos.find({
-    sort: [{ createdAt: 'asc' }]
-  }).$.subscribe(todos => {
-    if (!todos) return;
-    renderTodos(todos);
-  });
+  // Load and render initial todos
+  await loadAndRenderTodos();
 
   // Set up UI event listeners
   const addTodoBtn = document.getElementById('add-todo-btn');
@@ -165,12 +156,15 @@ const main = async () => {
   const addNewTodo = async () => {
     const todoText = todoInput.value.trim();
     if (todoText) {
-      await db.todos.insert({
-        id: new Date().getTime().toString(), // Simple unique ID
+      const newTodo = {
+        id: Date.now().toString(),
         text: todoText,
-        createdAt: new Date().getTime()
-      });
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+      await db.todos.add(newTodo);
       todoInput.value = '';
+      await loadAndRenderTodos();
     }
   };
 
