@@ -7,3 +7,12 @@ There are two verison of it:
 - [rxdb](https://github.com/pubkey/rxdb) version
 
 So let's do that!
+
+> home:
+![alt text](image.png)
+
+> edit
+![alt text](image-1.png)
+
+> delete
+![alt text](image-2.png)
